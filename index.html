@@ -1,70 +1,39 @@
-<script>
-puter.ready(async () => {
-  const statusEl = document.getElementById("status");
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Puter Test</title>
+</head>
+<body>
+  <h1>Puterテスト</h1>
+  <button id="start">執筆開始</button>
+  <pre id="output"></pre>
 
-  if (!puter.auth.isSignedIn()) {
-    statusEl.innerText = "❌ Puterにログインしていない";
-    return;
-  }
+  <!-- Puterは body の一番最後 -->
+  <script src="https://js.puter.com/v2/"></script>
 
-  try {
-    await puter.ai.getModels();
-    statusEl.innerText = "✅ Puter AI 利用可能";
-  } catch (e) {
-    statusEl.innerText = "❌ Puter AI が有効化されていない";
-    console.error(e);
-  }
-
-  document.getElementById("btn").onclick = runClaude;
-});
-
-async function runClaude() {
-  const outputEl = document.getElementById("output");
-  const statusEl = document.getElementById("status");
-  const btn = document.getElementById("btn");
-
-  outputEl.innerText = "";
-  btn.disabled = true;
-  statusEl.innerText = "Claudeを呼び出している…";
-
-  const prompt = `
-あなたは Claude の文体を持つ作家です。
-抑制的で比喩を好み、余白を大切にしてください。
-
-お題：
-${document.getElementById("prompt").value}
-`;
-
-  try {
-    const stream = await puter.ai.chat(prompt, {
-      model: "claude",
-      stream: true
-    });
-
-    statusEl.innerText = "執筆中…";
-
-    let received = false;
-
-    for await (const part of stream) {
-      if (part?.text) {
-        received = true;
-        outputEl.innerText += part.text;
+  <script>
+    window.addEventListener('load', () => {
+      if (typeof puter === 'undefined') {
+        document.getElementById('output').textContent =
+          '❌ puter がロードされていない';
+        return;
       }
-    }
 
-    if (!received) {
-      outputEl.innerText = "⚠️ Claudeからの出力がありませんでした";
-      statusEl.innerText = "無応答";
-    } else {
-      statusEl.innerText = "完了";
-    }
+      document.getElementById('start').onclick = async () => {
+        document.getElementById('output').textContent = '執筆中…';
 
-  } catch (err) {
-    console.error(err);
-    outputEl.innerText = "❌ エラー:\n" + err.message;
-    statusEl.innerText = "失敗";
-  } finally {
-    btn.disabled = false;
-  }
-}
-</script>
+        const res = await puter.ai.chat({
+          model: 'claude-3.5-sonnet',
+          messages: [
+            { role: 'user', content: '短い物語を書いて' }
+          ]
+        });
+
+        document.getElementById('output').textContent =
+          res.message?.content || '⚠️ 出力なし';
+      };
+    });
+  </script>
+</body>
+</html>
