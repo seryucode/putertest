@@ -1,127 +1,70 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8">
-  <title>Claude執筆マシン</title>
-  <script src="https://js.puter.com/v2/"></script>
-  <style>
-    body {
-      font-family: "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
-      max-width: 800px;
-      margin: 20px auto;
-      padding: 20px;
-      background-color: #f4f4f9;
-    }
-    textarea {
-      width: 100%;
-      font-size: 16px;
-      padding: 15px;
-      border-radius: 8px;
-      border: 1px solid #ddd;
-      min-height: 120px;
-      box-sizing: border-box;
-    }
-    #output {
-      background: #fff;
-      padding: 20px;
-      white-space: pre-wrap;
-      min-height: 240px;
-      margin-top: 20px;
-      border-radius: 8px;
-      border: 1px solid #ddd;
-      line-height: 1.8;
-    }
-    button {
-      padding: 12px 24px;
-      font-size: 16px;
-      background: #222;
-      color: #fff;
-      border: none;
-      cursor: pointer;
-      border-radius: 6px;
-      margin-top: 10px;
-      font-weight: bold;
-    }
-    button:disabled {
-      background: #999;
-      cursor: wait;
-    }
-    .status {
-      font-size: 12px;
-      color: #666;
-      margin-left: 10px;
-    }
-  </style>
-</head>
-<body>
-
-<h1>🖋️ Claude執筆マシン</h1>
-
-<textarea id="prompt" placeholder="お題を書く（例：雨の夜、誰もいない喫茶店で起こる出来事）"></textarea><br>
-
-<button id="btn">執筆開始</button>
-<span id="status" class="status"></span>
-
-<div id="output">（ここに文章が生成される）</div>
-
 <script>
-puter.ready(() => {
-  const btn = document.getElementById("btn");
-  btn.onclick = runClaude;
-});
-
-async function runClaude() {
-  const promptEl = document.getElementById("prompt");
-  const outputEl = document.getElementById("output");
-  const btn = document.getElementById("btn");
+puter.ready(async () => {
   const statusEl = document.getElementById("status");
 
-  const userPrompt = promptEl.value.trim();
-  if (!userPrompt) {
-    alert("お題が空だ。書け。");
+  if (!puter.auth.isSignedIn()) {
+    statusEl.innerText = "❌ Puterにログインしていない";
     return;
   }
 
+  try {
+    await puter.ai.getModels();
+    statusEl.innerText = "✅ Puter AI 利用可能";
+  } catch (e) {
+    statusEl.innerText = "❌ Puter AI が有効化されていない";
+    console.error(e);
+  }
+
+  document.getElementById("btn").onclick = runClaude;
+});
+
+async function runClaude() {
+  const outputEl = document.getElementById("output");
+  const statusEl = document.getElementById("status");
+  const btn = document.getElementById("btn");
+
   outputEl.innerText = "";
   btn.disabled = true;
-  statusEl.innerText = "接続中…";
+  statusEl.innerText = "Claudeを呼び出している…";
 
-  const systemPrompt = `
+  const prompt = `
 あなたは Claude の文体を持つ作家です。
-抑制的で、比喩を好み、余白を大切にしてください。
-感情を直接説明せず、行間で伝えてください。
-冗長な結論や説明は不要です。
+抑制的で比喩を好み、余白を大切にしてください。
+
+お題：
+${document.getElementById("prompt").value}
 `;
 
   try {
-    const response = await puter.ai.chat(
-      systemPrompt + "\n\nお題:\n" + userPrompt,
-      {
-        model: "claude",
-        stream: true
-      }
-    );
+    const stream = await puter.ai.chat(prompt, {
+      model: "claude",
+      stream: true
+    });
 
     statusEl.innerText = "執筆中…";
 
-    for await (const part of response) {
+    let received = false;
+
+    for await (const part of stream) {
       if (part?.text) {
+        received = true;
         outputEl.innerText += part.text;
-        window.scrollTo(0, document.body.scrollHeight);
       }
     }
 
-    statusEl.innerText = "完了";
+    if (!received) {
+      outputEl.innerText = "⚠️ Claudeからの出力がありませんでした";
+      statusEl.innerText = "無応答";
+    } else {
+      statusEl.innerText = "完了";
+    }
 
   } catch (err) {
     console.error(err);
-    outputEl.innerText = "エラーが発生した:\n" + err;
+    outputEl.innerText = "❌ エラー:\n" + err.message;
     statusEl.innerText = "失敗";
   } finally {
     btn.disabled = false;
   }
 }
 </script>
-
-</body>
-</html>
