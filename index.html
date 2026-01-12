@@ -2,32 +2,60 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>4-Model Multi Chat</title>
+  <title>Writer's Chat (Copy)</title>
   <script src="https://js.puter.com/v2/"></script>
   <style>
     body { font-family: "Hiragino Kaku Gothic ProN", sans-serif; margin: 0; background: #121212; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
     header { background: #1e1e1e; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; }
     
     #chat-container { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
-    .msg { max-width: 85%; padding: 14px; border-radius: 12px; line-height: 1.7; white-space: pre-wrap; font-size: 15px; border: 1px solid transparent; }
-    .user { align-self: flex-end; background: #2b5278; color: white; }
-    .ai { align-self: flex-start; background: #262626; border-color: #333; }
+    
+    /* メッセージバブル */
+    .msg { 
+        max-width: 85%; 
+        padding: 14px; 
+        border-radius: 12px; 
+        line-height: 1.7; 
+        white-space: pre-wrap; 
+        font-size: 15px; 
+        position: relative; /* ボタン配置用 */
+        border: 1px solid transparent;
+    }
+    .user { align-self: flex-end; background: #2b5278; color: white; padding-right: 14px; }
+    .ai { align-self: flex-start; background: #262626; border-color: #333; padding-top: 35px; /* ボタンの分あける */ }
+    
     .forgotten { opacity: 0.3; border-style: dashed; }
+
+    /* コピーボタン（AIのみ表示） */
+    .copy-btn {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        background: #333;
+        color: #aaa;
+        border: 1px solid #444;
+        border-radius: 4px;
+        font-size: 11px;
+        padding: 4px 8px;
+        cursor: pointer;
+        transition: 0.2s;
+    }
+    .copy-btn:hover { background: #444; color: white; }
     
     footer { background: #1e1e1e; padding: 20px; border-top: 1px solid #333; }
     .ui-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; }
     select { flex: 1; padding: 10px; border-radius: 8px; background: #333; color: white; border: 1px solid #444; font-size: 14px; }
     textarea { width: 100%; height: 80px; padding: 12px; border-radius: 10px; background: #2d2d2d; color: white; border: 1px solid #444; resize: none; font-family: inherit; font-size: 16px; box-sizing: border-box; }
-    button { padding: 0 25px; background: #007bff; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; transition: 0.2s; }
-    button:hover { background: #0056b3; }
-    button:disabled { background: #555; cursor: not-allowed; }
+    button.send { padding: 0 25px; background: #007bff; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+    button.send:hover { background: #0056b3; }
+    button.send:disabled { background: #555; cursor: not-allowed; }
   </style>
 </head>
 <body>
 
   <header>
-    <div style="font-weight:bold; letter-spacing:1px;">🖋️ MULTI-MODEL WRITER</div>
-    <button onclick="clearHistory()" style="background:#cc3300; font-size:11px; padding:5px 10px;">全履歴リセット</button>
+    <div style="font-weight:bold; letter-spacing:1px;">🖋️ WRITER'S STUDIO</div>
+    <button onclick="clearHistory()" style="background:#cc3300; color:white; border:none; border-radius:4px; font-size:11px; padding:5px 10px; cursor:pointer;">全履歴リセット</button>
   </header>
 
   <div id="chat-container"></div>
@@ -36,25 +64,25 @@
     <div class="ui-row">
         <label style="font-size:12px; color:#aaa;">MODEL:</label>
         <select id="modelSelect">
-            <option value="claude-opus-4-5-latest">👑 Claude Opus 4.5 (最高峰・重厚)</option>
-            <option value="claude-3-7-sonnet-latest">⚡ Claude 3.7 Sonnet (最新・鋭い)</option>
-            <option value="deepseek/deepseek-r1:free">🧠 DeepSeek R1 (無料・論理思考)</option>
-            <option value="meta-llama/llama-3.3-70b-instruct:free">🦙 Llama 3.3 70B (無料・表現豊か)</option>
+            <option value="claude-opus-4-5-latest">👑 Claude Opus 4.5 (最高峰)</option>
+            <option value="claude-3-7-sonnet-latest">⚡ Claude 3.7 Sonnet (最新鋭)</option>
+            <option value="deepseek/deepseek-r1:free">🧠 DeepSeek R1 (プロット用)</option>
+            <option value="meta-llama/llama-3.3-70b-instruct:free">🦙 Llama 3.3 (サブ用)</option>
         </select>
         <span id="mem-info" style="font-size:11px; color:#666;"></span>
     </div>
     <div style="display:flex; gap:10px;">
-        <textarea id="prompt" placeholder="メッセージを入力... (最初の1通目が永久保存される設定になります)"></textarea>
-        <button id="sendBtn" onclick="sendMessage()">送信</button>
+        <textarea id="prompt" placeholder="ここに指示を入力..."></textarea>
+        <button class="send" id="sendBtn" onclick="sendMessage()">送信</button>
     </div>
   </footer>
 
   <script>
     let history = [];
-    const CONTEXT_WINDOW = 10; // 最新何件を記憶に含めるか
+    const CONTEXT_WINDOW = 10; 
 
     window.onload = async () => {
-        const saved = localStorage.getItem('multi_model_chat');
+        const saved = localStorage.getItem('multi_model_chat_v2');
         if (saved) { history = JSON.parse(saved); renderChat(); }
         if (!puter.auth.isSignedIn()) await puter.auth.signIn();
     };
@@ -62,7 +90,7 @@
     function clearHistory() {
         if(confirm("全履歴をリセットしますか？")) {
             history = [];
-            localStorage.removeItem('multi_model_chat');
+            localStorage.removeItem('multi_model_chat_v2');
             renderChat();
         }
     }
@@ -74,11 +102,29 @@
             const isForgotten = (idx > 0 && idx < history.length - CONTEXT_WINDOW);
             const div = document.createElement('div');
             div.className = `msg ${m.role === 'user' ? 'user' : 'ai'} ${isForgotten ? 'forgotten' : ''}`;
-            div.innerText = m.content;
+            
+            // テキスト本文
+            const textSpan = document.createElement('span');
+            textSpan.innerText = m.content;
+            div.appendChild(textSpan);
+
+            // AIの場合のみコピーボタン追加
+            if (m.role === 'assistant') {
+                const copyBtn = document.createElement('button');
+                copyBtn.className = 'copy-btn';
+                copyBtn.innerText = '📋 コピー';
+                copyBtn.onclick = () => {
+                    navigator.clipboard.writeText(m.content);
+                    copyBtn.innerText = '✅ コピー完了';
+                    setTimeout(() => copyBtn.innerText = '📋 コピー', 2000);
+                };
+                div.appendChild(copyBtn);
+            }
+
             container.appendChild(div);
         });
         container.scrollTop = container.scrollHeight;
-        document.getElementById('mem-info').innerText = `Total: ${history.length}`;
+        document.getElementById('mem-info').innerText = `Msg: ${history.length}`;
     }
 
     async function sendMessage() {
@@ -96,7 +142,7 @@
 
         try {
             let context = [];
-            if (history.length > 0) context.push(history[0]); // 1通目は絶対
+            if (history.length > 0) context.push(history[0]); 
             const recent = history.slice(-CONTEXT_WINDOW);
             recent.forEach(m => { if (m !== history[0]) context.push(m); });
 
@@ -109,10 +155,10 @@
             for await (const part of resp) {
                 if (part?.text) {
                     history[aiIdx].content += part.text;
-                    renderChat();
+                    renderChat(); // ストリーミング中も再描画
                 }
             }
-            localStorage.setItem('multi_model_chat', JSON.stringify(history));
+            localStorage.setItem('multi_model_chat_v2', JSON.stringify(history));
         } catch (e) {
             alert("エラー: " + e.message);
         } finally {
