@@ -2,191 +2,122 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>Ultimate AI Writer</title>
+  <title>4-Model Multi Chat</title>
   <script src="https://js.puter.com/v2/"></script>
   <style>
-    body { 
-      font-family: "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif; 
-      max-width: 800px; 
-      margin: 0 auto; 
-      padding: 40px 20px;
-      color: #333;
-      background-color: #f0f2f5;
-    }
-    h1 {
-      text-align: center;
-      color: #2c3e50;
-      font-size: 24px;
-      margin-bottom: 30px;
-    }
+    body { font-family: "Hiragino Kaku Gothic ProN", sans-serif; margin: 0; background: #121212; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
+    header { background: #1e1e1e; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; }
     
-    /* モデル選択エリア */
-    .control-panel {
-        background: white;
-        padding: 20px;
-        border-radius: 10px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        margin-bottom: 20px;
-    }
-    label { font-weight: bold; display: block; margin-bottom: 5px; }
-    select {
-        width: 100%;
-        padding: 10px;
-        font-size: 16px;
-        border: 2px solid #ddd;
-        border-radius: 5px;
-        background: #fff;
-        margin-bottom: 10px;
-    }
-
-    textarea { 
-      width: 100%; 
-      height: 150px; 
-      padding: 15px; 
-      font-size: 16px; 
-      border: 2px solid #ddd; 
-      border-radius: 8px; 
-      resize: vertical;
-      box-sizing: border-box;
-      font-family: inherit;
-    }
-    textarea:focus { outline: none; border-color: #4a90e2; }
+    #chat-container { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+    .msg { max-width: 85%; padding: 14px; border-radius: 12px; line-height: 1.7; white-space: pre-wrap; font-size: 15px; border: 1px solid transparent; }
+    .user { align-self: flex-end; background: #2b5278; color: white; }
+    .ai { align-self: flex-start; background: #262626; border-color: #333; }
+    .forgotten { opacity: 0.3; border-style: dashed; }
     
-    button { 
-      width: 100%;
-      padding: 15px; 
-      font-size: 18px; 
-      font-weight: bold; 
-      cursor: pointer; 
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-      color: white; 
-      border: none; 
-      border-radius: 6px; 
-      transition: opacity 0.2s;
-      margin-top: 10px;
-    }
-    button:hover { opacity: 0.9; }
-    button:disabled { background: #ccc; cursor: not-allowed; }
-    
-    #output { 
-      margin-top: 30px; 
-      padding: 25px; 
-      border-radius: 8px; 
-      min-height: 100px; 
-      white-space: pre-wrap; 
-      line-height: 1.8;
-      background: #fff;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-      border: 1px solid #eee;
-    }
-    .status { text-align: center; display: block; margin-top: 10px; color: #666; font-size: 0.9em; }
-    .hidden { display: none; }
-    .error { color: #d9534f; border-left: 5px solid #d9534f; background: #fff5f5; }
+    footer { background: #1e1e1e; padding: 20px; border-top: 1px solid #333; }
+    .ui-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; }
+    select { flex: 1; padding: 10px; border-radius: 8px; background: #333; color: white; border: 1px solid #444; font-size: 14px; }
+    textarea { width: 100%; height: 80px; padding: 12px; border-radius: 10px; background: #2d2d2d; color: white; border: 1px solid #444; resize: none; font-family: inherit; font-size: 16px; box-sizing: border-box; }
+    button { padding: 0 25px; background: #007bff; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+    button:hover { background: #0056b3; }
+    button:disabled { background: #555; cursor: not-allowed; }
   </style>
 </head>
 <body>
 
-  <h1>🖋️ Ultimate AI Writer</h1>
+  <header>
+    <div style="font-weight:bold; letter-spacing:1px;">🖋️ MULTI-MODEL WRITER</div>
+    <button onclick="clearHistory()" style="background:#cc3300; font-size:11px; padding:5px 10px;">全履歴リセット</button>
+  </header>
 
-  <div id="login-view" style="text-align:center; padding:50px;">
-    <p>最強のAIを使うには、認証が必要です。</p>
-    <button onclick="connect()" style="width:auto; padding:10px 30px;">連携する（ログイン）</button>
-  </div>
+  <div id="chat-container"></div>
 
-  <div id="app-view" class="hidden">
-    
-    <div class="control-panel">
-        <label for="modelSelect">使用するモデルを選択:</label>
+  <footer>
+    <div class="ui-row">
+        <label style="font-size:12px; color:#aaa;">MODEL:</label>
         <select id="modelSelect">
-            <option value="claude-opus-4-5-latest">👑 Claude Opus 4.5 (最強?)</option>
-            <option value="claude-3-7-sonnet-latest">⚡ Claude 3.7 Sonnet (最新鋭)</option>
-            <option value="gpt-5.2-chat-latest">🤖 GPT-5.2 (OpenAI最強)</option>
-            <option value="claude-3-5-sonnet-latest" selected>🛡️ Claude 3.5 Sonnet (安定)</option>
-            <option value="gpt-4o">Standard GPT-4o</option>
+            <option value="claude-opus-4-5-latest">👑 Claude Opus 4.5 (最高峰・重厚)</option>
+            <option value="claude-3-7-sonnet-latest">⚡ Claude 3.7 Sonnet (最新・鋭い)</option>
+            <option value="deepseek/deepseek-r1:free">🧠 DeepSeek R1 (無料・論理思考)</option>
+            <option value="meta-llama/llama-3.3-70b-instruct:free">🦙 Llama 3.3 70B (無料・表現豊か)</option>
         </select>
+        <span id="mem-info" style="font-size:11px; color:#666;"></span>
     </div>
-
-    <textarea id="prompt" placeholder="最高のお題を入力しろ..."></textarea>
-    
-    <button id="sendBtn" onclick="generate()">執筆開始</button>
-    <span id="status" class="status"></span>
-    
-    <div id="output"></div>
-  </div>
+    <div style="display:flex; gap:10px;">
+        <textarea id="prompt" placeholder="メッセージを入力... (最初の1通目が永久保存される設定になります)"></textarea>
+        <button id="sendBtn" onclick="sendMessage()">送信</button>
+    </div>
+  </footer>
 
   <script>
-    // 起動チェック
-    (async function init() {
-      if (puter.auth.isSignedIn()) {
-        showApp();
-      }
-    })();
+    let history = [];
+    const CONTEXT_WINDOW = 10; // 最新何件を記憶に含めるか
 
-    function showApp() {
-      document.getElementById('login-view').classList.add('hidden');
-      document.getElementById('app-view').classList.remove('hidden');
+    window.onload = async () => {
+        const saved = localStorage.getItem('multi_model_chat');
+        if (saved) { history = JSON.parse(saved); renderChat(); }
+        if (!puter.auth.isSignedIn()) await puter.auth.signIn();
+    };
+
+    function clearHistory() {
+        if(confirm("全履歴をリセットしますか？")) {
+            history = [];
+            localStorage.removeItem('multi_model_chat');
+            renderChat();
+        }
     }
 
-    async function connect() {
-      try {
-        await puter.auth.signIn();
-        showApp();
-      } catch (e) {
-        alert("ログイン失敗: " + e);
-      }
-    }
-
-    async function generate() {
-      const prompt = document.getElementById('prompt').value;
-      const model = document.getElementById('modelSelect').value;
-      const out = document.getElementById('output');
-      const btn = document.getElementById('sendBtn');
-      const st = document.getElementById('status');
-      
-      if (!prompt) return alert("お題を入力してください。");
-
-      // UI準備
-      btn.disabled = true;
-      out.className = ""; // エラーリセット
-      out.innerText = "";
-      st.innerText = model + " を呼び出し中...";
-
-      try {
-        // 選択されたモデルで送信
-        const resp = await puter.ai.chat(prompt, { 
-            model: model, 
-            stream: true 
+    function renderChat() {
+        const container = document.getElementById('chat-container');
+        container.innerHTML = '';
+        history.forEach((m, idx) => {
+            const isForgotten = (idx > 0 && idx < history.length - CONTEXT_WINDOW);
+            const div = document.createElement('div');
+            div.className = `msg ${m.role === 'user' ? 'user' : 'ai'} ${isForgotten ? 'forgotten' : ''}`;
+            div.innerText = m.content;
+            container.appendChild(div);
         });
+        container.scrollTop = container.scrollHeight;
+        document.getElementById('mem-info').innerText = `Total: ${history.length}`;
+    }
 
-        st.innerText = "執筆中...";
+    async function sendMessage() {
+        const input = document.getElementById('prompt');
+        const text = input.value.trim();
+        if (!text) return;
 
-        for await (const part of resp) {
-            if (part?.text) {
-                out.innerText += part.text;
+        history.push({ role: "user", content: text });
+        renderChat();
+        input.value = "";
+        
+        const model = document.getElementById('modelSelect').value;
+        const btn = document.getElementById('sendBtn');
+        btn.disabled = true;
+
+        try {
+            let context = [];
+            if (history.length > 0) context.push(history[0]); // 1通目は絶対
+            const recent = history.slice(-CONTEXT_WINDOW);
+            recent.forEach(m => { if (m !== history[0]) context.push(m); });
+
+            const resp = await puter.ai.chat(context, { model: model, stream: true });
+            
+            let aiMsg = { role: "assistant", content: "" };
+            history.push(aiMsg);
+            const aiIdx = history.length - 1;
+
+            for await (const part of resp) {
+                if (part?.text) {
+                    history[aiIdx].content += part.text;
+                    renderChat();
+                }
             }
+            localStorage.setItem('multi_model_chat', JSON.stringify(history));
+        } catch (e) {
+            alert("エラー: " + e.message);
+        } finally {
+            btn.disabled = false;
         }
-        
-        st.innerText = "完了 (" + model + ")";
-
-      } catch (e) {
-        console.error(e);
-        out.classList.add('error');
-        
-        let msg = "【エラー発生】\n";
-        msg += (e.message || JSON.stringify(e));
-        
-        // エラー解析ヒント
-        if (msg.includes("Model not found")) {
-            msg += "\n\n⚠️ このモデル名は無効かもしれません。リストから別のモデルを選んでください。";
-        } else if (msg.includes("credits") || msg.includes("402")) {
-            msg += "\n\n💰 ポイント不足です。より軽量なモデル（3.5 Sonnetなど）に切り替えてください。";
-        }
-        
-        out.innerText = msg;
-        st.innerText = "失敗";
-      } finally {
-        btn.disabled = false;
-      }
     }
   </script>
 </body>
