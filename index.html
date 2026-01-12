@@ -2,13 +2,13 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>Writer's Chat (Copy)</title>
+  <title>Writer's Studio Complete</title>
   <script src="https://js.puter.com/v2/"></script>
   <style>
     body { font-family: "Hiragino Kaku Gothic ProN", sans-serif; margin: 0; background: #121212; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
     header { background: #1e1e1e; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; }
     
-    #chat-container { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+    #chat-container { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
     
     /* メッセージバブル */
     .msg { 
@@ -18,15 +18,16 @@
         line-height: 1.7; 
         white-space: pre-wrap; 
         font-size: 15px; 
-        position: relative; /* ボタン配置用 */
+        position: relative; 
         border: 1px solid transparent;
+        padding-bottom: 25px; /* カウンタ用スペース */
     }
     .user { align-self: flex-end; background: #2b5278; color: white; padding-right: 14px; }
-    .ai { align-self: flex-start; background: #262626; border-color: #333; padding-top: 35px; /* ボタンの分あける */ }
+    .ai { align-self: flex-start; background: #262626; border-color: #333; padding-top: 35px; }
     
     .forgotten { opacity: 0.3; border-style: dashed; }
 
-    /* コピーボタン（AIのみ表示） */
+    /* コピーボタン */
     .copy-btn {
         position: absolute;
         top: 5px;
@@ -41,20 +42,38 @@
         transition: 0.2s;
     }
     .copy-btn:hover { background: #444; color: white; }
+
+    /* 文字数カウンタ（バブル内） */
+    .char-count {
+        position: absolute;
+        bottom: 5px;
+        right: 10px;
+        font-size: 10px;
+        color: #888;
+        font-family: monospace;
+    }
+    .user .char-count { color: #ccc; }
     
     footer { background: #1e1e1e; padding: 20px; border-top: 1px solid #333; }
     .ui-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; }
     select { flex: 1; padding: 10px; border-radius: 8px; background: #333; color: white; border: 1px solid #444; font-size: 14px; }
+    
+    /* 入力エリア周り */
+    .input-area { display: flex; gap: 10px; align-items: flex-end; }
     textarea { width: 100%; height: 80px; padding: 12px; border-radius: 10px; background: #2d2d2d; color: white; border: 1px solid #444; resize: none; font-family: inherit; font-size: 16px; box-sizing: border-box; }
-    button.send { padding: 0 25px; background: #007bff; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+    
+    .send-group { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+    button.send { width: 80px; height: 50px; background: #007bff; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; transition: 0.2s; }
     button.send:hover { background: #0056b3; }
     button.send:disabled { background: #555; cursor: not-allowed; }
+    
+    #input-counter { font-size: 10px; color: #888; font-family: monospace; }
   </style>
 </head>
 <body>
 
   <header>
-    <div style="font-weight:bold; letter-spacing:1px;">🖋️ WRITER'S STUDIO</div>
+    <div style="font-weight:bold; letter-spacing:1px;">🖋️ WRITER'S STUDIO <span style="font-size:10px; color:#666;">v3.0</span></div>
     <button onclick="clearHistory()" style="background:#cc3300; color:white; border:none; border-radius:4px; font-size:11px; padding:5px 10px; cursor:pointer;">全履歴リセット</button>
   </header>
 
@@ -71,9 +90,13 @@
         </select>
         <span id="mem-info" style="font-size:11px; color:#666;"></span>
     </div>
-    <div style="display:flex; gap:10px;">
-        <textarea id="prompt" placeholder="ここに指示を入力..."></textarea>
-        <button class="send" id="sendBtn" onclick="sendMessage()">送信</button>
+    
+    <div class="input-area">
+        <textarea id="prompt" placeholder="ここに指示を入力..." oninput="updateInputCount()"></textarea>
+        <div class="send-group">
+            <span id="input-counter">0文字</span>
+            <button class="send" id="sendBtn" onclick="sendMessage()">送信</button>
+        </div>
     </div>
   </footer>
 
@@ -82,15 +105,21 @@
     const CONTEXT_WINDOW = 10; 
 
     window.onload = async () => {
-        const saved = localStorage.getItem('multi_model_chat_v2');
+        const saved = localStorage.getItem('multi_model_chat_v3');
         if (saved) { history = JSON.parse(saved); renderChat(); }
         if (!puter.auth.isSignedIn()) await puter.auth.signIn();
+        updateInputCount();
     };
+
+    function updateInputCount() {
+        const len = document.getElementById('prompt').value.length;
+        document.getElementById('input-counter').innerText = len + "文字";
+    }
 
     function clearHistory() {
         if(confirm("全履歴をリセットしますか？")) {
             history = [];
-            localStorage.removeItem('multi_model_chat_v2');
+            localStorage.removeItem('multi_model_chat_v3');
             renderChat();
         }
     }
@@ -103,19 +132,25 @@
             const div = document.createElement('div');
             div.className = `msg ${m.role === 'user' ? 'user' : 'ai'} ${isForgotten ? 'forgotten' : ''}`;
             
-            // テキスト本文
+            // 本文
             const textSpan = document.createElement('span');
             textSpan.innerText = m.content;
             div.appendChild(textSpan);
 
-            // AIの場合のみコピーボタン追加
+            // 文字数カウンタ
+            const countSpan = document.createElement('span');
+            countSpan.className = 'char-count';
+            countSpan.innerText = m.content.length + "文字";
+            div.appendChild(countSpan);
+
+            // コピーボタン（AIのみ）
             if (m.role === 'assistant') {
                 const copyBtn = document.createElement('button');
                 copyBtn.className = 'copy-btn';
                 copyBtn.innerText = '📋 コピー';
                 copyBtn.onclick = () => {
                     navigator.clipboard.writeText(m.content);
-                    copyBtn.innerText = '✅ コピー完了';
+                    copyBtn.innerText = '✅ 完了';
                     setTimeout(() => copyBtn.innerText = '📋 コピー', 2000);
                 };
                 div.appendChild(copyBtn);
@@ -135,6 +170,7 @@
         history.push({ role: "user", content: text });
         renderChat();
         input.value = "";
+        updateInputCount(); // リセット
         
         const model = document.getElementById('modelSelect').value;
         const btn = document.getElementById('sendBtn');
@@ -155,10 +191,10 @@
             for await (const part of resp) {
                 if (part?.text) {
                     history[aiIdx].content += part.text;
-                    renderChat(); // ストリーミング中も再描画
+                    renderChat(); // ここで文字数もリアルタイム更新される
                 }
             }
-            localStorage.setItem('multi_model_chat_v2', JSON.stringify(history));
+            localStorage.setItem('multi_model_chat_v3', JSON.stringify(history));
         } catch (e) {
             alert("エラー: " + e.message);
         } finally {
