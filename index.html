@@ -2,104 +2,153 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>System Diagnosis</title>
+  <title>Claude Writing Machine</title>
   <script src="https://js.puter.com/v2/"></script>
   <style>
     body { 
-      font-family: "Hiragino Kaku Gothic ProN", sans-serif; 
+      font-family: "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif; 
       max-width: 800px; 
       margin: 0 auto; 
-      padding: 20px;
+      padding: 40px 20px;
+      background-color: #f9f9f9;
+      color: #333;
     }
+    h1 { margin-bottom: 20px; font-size: 24px; border-bottom: 2px solid #ddd; padding-bottom: 10px; }
+    
+    /* 入力エリア */
+    textarea { 
+      width: 100%; 
+      height: 120px; 
+      padding: 15px; 
+      font-size: 16px; 
+      border: 1px solid #ccc; 
+      border-radius: 8px; 
+      box-sizing: border-box;
+      resize: vertical;
+      font-family: inherit;
+    }
+    textarea:focus { outline: 2px solid #007bff; border-color: transparent; }
+
+    /* ボタン */
     button { 
-      padding: 15px 30px; 
-      font-size: 18px; 
+      margin-top: 15px;
+      padding: 12px 30px; 
+      font-size: 16px; 
+      font-weight: bold; 
       cursor: pointer; 
-      background: #dc3545; /* 赤色で警告色 */
+      background: #222; 
       color: white; 
       border: none; 
-      border-radius: 5px; 
-      font-weight: bold;
-      margin-top: 10px;
+      border-radius: 6px; 
+      transition: background 0.2s;
     }
-    textarea { width: 100%; height: 80px; font-size: 16px; }
-    #log { 
-      background: #222; 
-      color: #0f0; /* 黒背景に緑文字 */
-      padding: 20px; 
-      margin-top: 20px; 
+    button:hover { background: #444; }
+    button:disabled { background: #aaa; cursor: wait; }
+
+    /* 出力エリア */
+    #output { 
+      margin-top: 30px; 
+      background: #fff; 
+      padding: 25px; 
       border-radius: 8px; 
+      min-height: 200px; 
       white-space: pre-wrap; 
-      font-family: monospace;
-      min-height: 200px;
+      line-height: 1.8;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+      border: 1px solid #e1e1e1;
     }
+    
+    /* ステータス表示 */
+    .status { margin-left: 10px; font-size: 14px; color: #666; }
+    
+    /* 非表示クラス */
+    .hidden { display: none; }
   </style>
 </head>
 <body>
 
-  <h1>🕵️ エラー解析モード</h1>
+  <h1>🖋️ Claude執筆マシン</h1>
 
-  <div id="login-area">
-    <p>まずはPuterと連携する。</p>
-    <button onclick="doLogin()">1. ログイン連携</button>
+  <div id="login-view">
+    <p>利用にはPuterアカウントとの連携が必要です。</p>
+    <button onclick="connect()">連携する（ログイン）</button>
   </div>
 
-  <div id="test-area" style="display:none; margin-top:20px; border-top:1px solid #ccc; padding-top:20px;">
-    <p>適当な言葉を入れて送信ボタンを押せ。</p>
-    <textarea id="prompt">テスト</textarea>
-    <button onclick="runTest()">2. 送信テスト（解析）</button>
+  <div id="app-view" class="hidden">
+    <textarea id="prompt" placeholder="ここにお題を入力（例: 深夜のコンビニで起こる心温まるストーリー）"></textarea>
+    <br>
+    <button id="sendBtn" onclick="generate()">執筆する</button>
+    <span id="status" class="status"></span>
+    
+    <div id="output">（ここに結果が表示されます）</div>
   </div>
-
-  <h3>システムログ:</h3>
-  <div id="log">待機中...</div>
 
   <script>
-    const logEl = document.getElementById('log');
+    // 起動チェック
+    (async function init() {
+      if (puter.auth.isSignedIn()) {
+        showApp();
+      }
+    })();
 
-    function log(msg) {
-        logEl.innerText += "\n[" + new Date().toLocaleTimeString() + "] " + msg;
+    function showApp() {
+      document.getElementById('login-view').classList.add('hidden');
+      document.getElementById('app-view').classList.remove('hidden');
     }
 
     // 1. ログイン処理
-    async function doLogin() {
-        log("ログイン試行開始...");
-        try {
-            const user = await puter.auth.signIn();
-            log("ログイン成功: " + user.username);
-            document.getElementById('test-area').style.display = 'block';
-        } catch (e) {
-            log("ログイン失敗:\n" + JSON.stringify(e, null, 2));
-        }
+    async function connect() {
+      try {
+        await puter.auth.signIn();
+        showApp();
+      } catch (e) {
+        alert("ログイン失敗: " + e);
+      }
     }
 
-    // 2. AIテスト処理
-    async function runTest() {
-        const prompt = document.getElementById('prompt').value;
-        log("--- リクエスト送信 ---");
-        log("モデル: 指定なし（デフォルト）");
-        
-        try {
-            // 最も単純な形式で送信
-            const resp = await puter.ai.chat(prompt);
-            
-            log("受信データ型: " + typeof resp);
-            log("受信生データ:\n" + JSON.stringify(resp, null, 2));
-            
-            // テキスト抽出の試行
-            const text = resp?.message?.content?.[0]?.text || resp?.text || "抽出不能";
-            log(">> 解読結果: " + text);
+    // 2. 生成処理
+    async function generate() {
+      const prompt = document.getElementById('prompt').value;
+      const out = document.getElementById('output');
+      const btn = document.getElementById('sendBtn');
+      const st = document.getElementById('status');
+      
+      if (!prompt) return alert("お題を書いてくれ。");
 
-        } catch (e) {
-            log("!!! エラー発生 !!!");
-            
-            // エラーオブジェクトの全プロパティを列挙して表示
-            let errInfo = {};
-            Object.getOwnPropertyNames(e).forEach(key => {
-                errInfo[key] = e[key];
-            });
-            
-            log("エラー詳細:\n" + JSON.stringify(errInfo, null, 2));
+      // UI準備
+      btn.disabled = true;
+      st.innerText = "Claude 3.5 Sonnet が思考中...";
+      out.style.opacity = "0.5";
+
+      try {
+        // AIへ送信
+        const resp = await puter.ai.chat(prompt, { model: 'claude-3-5-sonnet' });
+
+        // ★修正ポイント: どんな形式で来てもテキストを抜き出すロジック
+        let text = "";
+        const content = resp?.message?.content;
+
+        if (typeof content === 'string') {
+            // パターンA: いきなり文字列が入っている場合
+            text = content;
+        } else if (Array.isArray(content)) {
+            // パターンB: 配列の中にオブジェクトがある場合
+            text = content[0]?.text || JSON.stringify(content);
+        } else {
+            // パターンC: その他（念のため全文出す）
+            text = resp?.text || JSON.stringify(resp, null, 2);
         }
+
+        out.innerText = text;
+
+      } catch (e) {
+        out.innerText = "エラー: " + (e.message || JSON.stringify(e));
+      } finally {
+        // 後始末
+        btn.disabled = false;
+        st.innerText = "完了";
+        out.style.opacity = "1";
+      }
     }
   </script>
 </body>
